@@ -99,7 +99,7 @@ class EventEmitter:
 
     async def emit(
         self,
-        description="未知状态",
+        description="Unknown",
         status="in_progress",
         done=False,
         action="",
@@ -124,36 +124,44 @@ class Tools:
     class Valves(BaseModel):
         SEARXNG_ENGINE_API_BASE_URL: str = Field(
             default="https://example.com/search",
-            description="搜索引擎的基础URL",
+            description="Base URL of the search engine",
         )
+
         IGNORED_WEBSITES: str = Field(
             default="",
-            description="以逗号分隔的要忽略的网站列表",
+            description="Comma-separated list of websites to ignore",
         )
+
         RETURNED_SCRAPPED_PAGES_NO: int = Field(
             default=3,
-            description="要分析的搜索引擎结果数",
+            description="Number of search engine results to analyze",
         )
+
         SCRAPPED_PAGES_NO: int = Field(
             default=5,
-            description="已分页的总页数。理想情况下，大于返回的页面之一",
+            description="Total number of paginated pages. Ideally greater than one of the returned pages",
         )
+
         PAGE_CONTENT_WORDS_LIMIT: int = Field(
             default=5000,
-            description="限制每页的字数",
+            description="Limit the number of words per page",
         )
+
         CITATION_LINKS: bool = Field(
             default=False,
-            description="如果为True，则发送带有链接的自定义引用",
+            description="If True, sends custom citations with links",
         )
+
         JINA_READER_BASE_URL: str = Field(
-            default="",
-            description="Jina Reader的基础URL，使用默认参数以关闭",
+            default="https://r.jina.ai/",
+            description="Base URL of the Jina Reader",
         )
+
         REMOVE_LINKS: bool = Field(
             default=True,
-            description="检索中的返回是否移除链接",
+            description="Whether to remove links in the retrieved content",
         )
+
 
     def __init__(self):
         self.valves = self.Valves()
@@ -167,16 +175,16 @@ class Tools:
         __event_emitter__: Callable[[dict], Any] = None,
     ) -> str:
         """
-        搜索网络并获取相关页面的内容，搜索未知知识、新闻、信息、公共联系信息、天气等
+        Search the web and retrieve the content of relevant pages. Used to search for unknown knowledge, news, information, public contact info, weather, etc.
 
-        :params query: 搜索中使用的关键词
+        :params query: Keywords used in the search
 
-        :return: The content of the pages in json format.
+        :return: The content of the pages in JSON format.
         """
         functions = HelpFunctions()
         emitter = EventEmitter(__event_emitter__)
 
-        await emitter.emit(f"正在搜索: {query}")
+        await emitter.emit(f"Searching: {query}")
 
         search_engine_url = self.valves.SEARXNG_ENGINE_API_BASE_URL
 
@@ -191,7 +199,7 @@ class Tools:
         }
 
         try:
-            await emitter.emit("正在向搜索引擎发送请求")
+            await emitter.emit("Sending query to search engine")
             resp = requests.get(
                 search_engine_url, params=params, headers=self.headers, timeout=120
             )
@@ -200,19 +208,19 @@ class Tools:
 
             results = data.get("results", [])
             limited_results = results[: self.valves.SCRAPPED_PAGES_NO]
-            await emitter.emit(f"返回了 {len(limited_results)} 个搜索结果")
+            await emitter.emit(f"Found {len(limited_results)} search results")
 
         except requests.exceptions.RequestException as e:
             await emitter.emit(
                 status="error",
-                description=f"搜索时出错: {str(e)}",
+                description=f"Search error: {str(e)}",
                 done=True,
             )
             return json.dumps({"error": str(e)})
 
         results_json = []
         if limited_results:
-            await emitter.emit("正在处理搜索结果")
+            await emitter.emit("Processing search results")
 
             try:
                 with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -231,10 +239,10 @@ class Tools:
                                 results_json.append(result_json)
                                 processed_count += 1
                                 await emitter.emit(
-                                    f"处理页面 {processed_count}/{len(limited_results)}",
+                                    f"Processing page {processed_count}/{len(limited_results)}",
                                 )
                             except (TypeError, ValueError, Exception) as e:
-                                print(f"处理时出错: {str(e)}")
+                                print(f"Processing error: {str(e)}")
                                 continue
                         if len(results_json) >= self.valves.RETURNED_SCRAPPED_PAGES_NO:
                             break
@@ -242,7 +250,7 @@ class Tools:
             except BaseException as e:
                 await emitter.emit(
                     status="error",
-                    description=f"处理时出错: {str(e)}",
+                    description=f"Processing error: {str(e)}",
                     done=True,
                 )
 
@@ -268,7 +276,7 @@ class Tools:
 
         await emitter.emit(
             status="complete",
-            description=f"搜索到 {len(results_json)} 个结果",
+            description=f"Found {len(results_json)} search results",
             done=True,
             action="web_search",
             urls=urls,
@@ -280,16 +288,16 @@ class Tools:
         self, url: str, __event_emitter__: Callable[[dict], Any] = None
     ) -> str:
         """
-        打开输入的网站并获取其内容
+        Open the input website and retrieve its content
 
-        :params url: 需要打开的网站
+        :params url: Website to open
 
-        :return: The content of the website in json format.
+        :return: The content of the website in JSON format.
         """
         functions = HelpFunctions()
         emitter = EventEmitter(__event_emitter__)
 
-        await emitter.emit(f"正在从URL获取内容: {url}")
+        await emitter.emit(f"Fetching content: {url}")
 
         results_json = []
 
@@ -340,7 +348,7 @@ class Tools:
 
             await emitter.emit(
                 status="complete",
-                description="已成功检索和处理网站内容",
+                description="Fetched and processed content successfully",
                 done=True,
             )
 
@@ -348,13 +356,13 @@ class Tools:
             results_json.append(
                 {
                     "url": url,
-                    "content": f"检索页面失败,错误: {str(e)}",
+                    "content": f"Failed to fetch content: {str(e)}",
                 }
             )
 
             await emitter.emit(
                 status="error",
-                description=f"获取网站内容时出错: {str(e)}",
+                description=f"Fetch content error: {str(e)}",
                 done=True,
             )
 
